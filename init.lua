@@ -47,7 +47,45 @@ require('packer').startup(function(use)
                 },
                 filters = {
                     dotfiles = true
-                }
+                },
+                actions = {
+                    open_file = {
+                        quit_on_open = false,
+                        window_picker = {
+                            enable = true
+                        }
+                    }
+                },
+                renderer = {
+                    icons = {
+                        show = {
+                            file = true,
+                            folder = true,
+                            folder_arrow = true,
+                            git = true
+                        }
+                    }
+                },
+                on_attach = function(bufnr)
+                    local api = require('nvim-tree.api')
+                    
+                    local function opts(desc)
+                        return { desc = 'nvim-tree: ' .. desc, buffer = bufnr, noremap = true, silent = true, nowait = true }
+                    end
+
+                    -- Default mappings
+                    api.config.mappings.default_on_attach(bufnr)
+
+                    -- Custom mappings
+                    vim.keymap.set('n', 'a', api.fs.create, opts('Create'))
+                    vim.keymap.set('n', 'd', api.fs.remove, opts('Delete'))
+                    vim.keymap.set('n', 'r', api.fs.rename, opts('Rename'))
+                    vim.keymap.set('n', 'c', api.fs.copy.node, opts('Copy'))
+                    vim.keymap.set('n', 'x', api.fs.cut, opts('Cut'))
+                    vim.keymap.set('n', 'p', api.fs.paste, opts('Paste'))
+                    vim.keymap.set('n', 'y', api.fs.copy.filename, opts('Copy Name'))
+                    vim.keymap.set('n', 'Y', api.fs.copy.relative_path, opts('Copy Path'))
+                end
             }
         end
     }
