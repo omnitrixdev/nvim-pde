@@ -2,6 +2,10 @@ vim.opt.number = true
 vim.opt.relativenumber = true
 vim.g.mapleader = " "
 
+-- Fix number column width
+vim.opt.numberwidth = 4      -- Minimum number column width
+vim.opt.signcolumn = "yes:1" -- Always show sign column with fixed width
+
 -- Bootstrap packer.nvim
 local ensure_packer = function()
     local fn = vim.fn
@@ -37,8 +41,13 @@ require('packer').startup(function(use)
         requires = {'kyazdani42/nvim-web-devicons'},
         config = function()
             require("nvim-tree").setup {
-                view = { width = 30, side = "left" },
-                filters = { dotfiles = true }
+                view = {
+                    width = 30,
+                    side = "right"
+                },
+                filters = {
+                    dotfiles = true
+                }
             }
         end
     }
@@ -117,6 +126,88 @@ require('packer').startup(function(use)
                     end, {expr=true, buffer = bufnr})
                 end
             })
+        end
+    }
+
+    -- Multi-cursor support
+    use 'mg979/vim-visual-multi'
+
+    -- Auto pairs and tags
+    use {
+        "windwp/nvim-autopairs",
+        config = function()
+            require("nvim-autopairs").setup({
+                check_ts = true,  -- Enable treesitter
+                ts_config = {
+                    lua = {'string'},
+                    javascript = {'template_string'},
+                    java = false,
+                }
+            })
+        end
+    }
+
+    -- Auto close and rename JSX tags
+    use {
+        'windwp/nvim-ts-autotag',
+        config = function()
+            require('nvim-ts-autotag').setup({
+                filetypes = {
+                    'html', 'javascript', 'typescript', 'javascriptreact', 
+                    'typescriptreact', 'svelte', 'vue', 'tsx', 'jsx', 'xml'
+                },
+            })
+        end
+    }
+
+    -- Comment toggler
+    use {
+        'numToStr/Comment.nvim',
+        config = function()
+            require('Comment').setup({
+                padding = true,
+                sticky = true,
+                toggler = {
+                    line = 'gcc',
+                    block = 'gbc',
+                },
+                opleader = {
+                    line = 'gc',
+                    block = 'gb',
+                },
+            })
+            
+            -- Add Ctrl+/ mapping for both normal and visual mode
+            vim.keymap.set('n', '<C-_>', function()
+                require('Comment.api').toggle.linewise.current()
+            end, { noremap = true, silent = true })
+            
+            vim.keymap.set('x', '<C-_>', function()
+                local esc = vim.api.nvim_replace_termcodes('<ESC>', true, false, true)
+                vim.api.nvim_feedkeys(esc, 'nx', false)
+                require('Comment.api').toggle.linewise(vim.fn.visualmode())
+            end, { noremap = true, silent = true })
+        end
+    }
+
+    -- Which-key for keybinding hints
+    use {
+        "folke/which-key.nvim",
+        config = function()
+            require("which-key").setup({
+                window = {
+                    border = "single",
+                    position = "bottom",
+                },
+            })
+        end
+    }
+
+    -- Highlight and navigate between matching code blocks
+    use {
+        'andymass/vim-matchup',
+        setup = function()
+            vim.g.matchup_matchparen_offscreen = { method = "popup" }
         end
     }
 
@@ -324,6 +415,59 @@ vim.filetype.add({
     }
 })
 
+-- Status line configuration
+require('lualine').setup {
+    options = {
+        icons_enabled = true,
+        theme = 'auto',
+        component_separators = { left = '', right = ''},
+        section_separators = { left = '', right = ''},
+        disabled_filetypes = {
+            statusline = {},
+            winbar = {},
+        },
+        ignore_focus = {},
+        always_divide_middle = true,
+        globalstatus = false,
+        refresh = {
+            statusline = 1000,
+            tabline = 1000,
+            winbar = 1000,
+        }
+    },
+    sections = {
+        lualine_a = {'mode'},
+        lualine_b = {'branch', 'diff', 'diagnostics'},
+        lualine_c = {
+            {
+                'filename',
+                path = 1,  -- Show relative path
+                file_status = true,
+                symbols = {
+                    modified = ' ●',
+                    readonly = ' ',
+                    unnamed = '[No Name]',
+                }
+            }
+        },
+        lualine_x = {'encoding', 'fileformat', 'filetype'},
+        lualine_y = {'progress'},
+        lualine_z = {'location'}
+    },
+    inactive_sections = {
+        lualine_a = {},
+        lualine_b = {},
+        lualine_c = {'filename'},
+        lualine_x = {'location'},
+        lualine_y = {},
+        lualine_z = {}
+    },
+    tabline = {},
+    winbar = {},
+    inactive_winbar = {},
+    extensions = {}
+}
+
 -- Default options:
 require('kanagawa').setup({
     compile = false,
@@ -380,3 +524,17 @@ require('telescope').setup{
     }
   }
 }
+
+-- Additional editor settings
+vim.opt.clipboard = "unnamedplus"   -- Use system clipboard
+vim.opt.scrolloff = 8               -- Keep 8 lines above/below cursor
+vim.opt.sidescrolloff = 8           -- Keep 8 columns left/right of cursor
+vim.opt.cursorline = true           -- Highlight current line
+vim.opt.wrap = false                -- Don't wrap lines
+vim.opt.mouse = "a"                 -- Enable mouse support
+
+-- Additional keymaps for better navigation
+vim.keymap.set('n', '<C-d>', '<C-d>zz', { noremap = true, silent = true })  -- Keep cursor in middle when jumping
+vim.keymap.set('n', '<C-u>', '<C-u>zz', { noremap = true, silent = true })
+vim.keymap.set('n', 'n', 'nzzzv', { noremap = true, silent = true })        -- Keep cursor in middle when searching
+vim.keymap.set('n', 'N', 'Nzzzv', { noremap = true, silent = true })
