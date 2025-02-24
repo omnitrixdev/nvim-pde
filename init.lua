@@ -80,6 +80,46 @@ require('packer').startup(function(use)
         "williamboman/mason-lspconfig.nvim"
     }
 
+    -- Git signs
+    use {
+        'lewis6991/gitsigns.nvim',
+        config = function()
+            require('gitsigns').setup({
+                signs = {
+                    add          = { text = '│' },
+                    change       = { text = '│' },
+                    delete       = { text = '_' },
+                    topdelete    = { text = '‾' },
+                    changedelete = { text = '~' },
+                    untracked    = { text = '┆' },
+                },
+                signcolumn = true,
+                current_line_blame = true,
+                current_line_blame_opts = {
+                    virt_text = true,
+                    virt_text_pos = 'eol',
+                    delay = 500,
+                },
+                on_attach = function(bufnr)
+                    local gs = package.loaded.gitsigns
+
+                    -- Navigation between hunks
+                    vim.keymap.set('n', ']c', function()
+                        if vim.wo.diff then return ']c' end
+                        vim.schedule(function() gs.next_hunk() end)
+                        return '<Ignore>'
+                    end, {expr=true, buffer = bufnr})
+
+                    vim.keymap.set('n', '[c', function()
+                        if vim.wo.diff then return '[c' end
+                        vim.schedule(function() gs.prev_hunk() end)
+                        return '<Ignore>'
+                    end, {expr=true, buffer = bufnr})
+                end
+            })
+        end
+    }
+
     -- Automatically sync plugins if packer.nvim was just installed
     if packer_bootstrap then
         require('packer').sync()
@@ -94,6 +134,7 @@ require("mason-lspconfig").setup({
         "html",        -- HTML
         "cssls",       -- CSS
         "lua_ls",      -- Lua
+        "prettier",    -- Prettier formatter
     },
     automatic_installation = true
 })
@@ -150,16 +191,56 @@ local on_attach = function(client, bufnr)
     -- Enable completion triggered by <c-x><c-o>
     vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
 
-    -- Format on save
-    if client.server_capabilities.documentFormattingProvider then
+    -- Disable formatting for tsserver as we'll use prettier
+    if client.name == "tsserver" then
+        client.server_capabilities.documentFormattingProvider = false
+    end
+end
+
+-- Remove the format-on-save autocmd
+
+-- Prettier
+require('lspconfig').prettierd.setup({
+    capabilities = capabilities,
+    on_attach = function(client, bufnr)
+        on_attach(client, bufnr)
+        -- Format on save for Prettier-supported files
         vim.api.nvim_create_autocmd("BufWritePre", {
             buffer = bufnr,
             callback = function()
-                vim.lsp.buf.format({ bufnr = bufnr })
+                if client.server_capabilities.documentFormattingProvider then
+                    vim.lsp.buf.format({ 
+                        bufnr = bufnr,
+                        timeout_ms = 5000,
+                    })
+                end
             end
         })
-    end
-end
+    end,
+    filetypes = {
+        "javascript",
+        "javascriptreact",
+        "typescript",
+        "typescriptreact",
+        "json",
+        "css",
+        "scss",
+        "html"
+    },
+    settings = {
+        prettier = {
+            singleQuote = true,
+            semi = false,
+            tabWidth = 2,
+            useTabs = false,
+            printWidth = 80,
+            trailingComma = "all",
+            jsxSingleQuote = true,
+            arrowParens = "avoid",
+            bracketSpacing = true,
+        }
+    }
+})
 
 -- TypeScript/JavaScript
 require('lspconfig').tsserver.setup({
@@ -185,6 +266,27 @@ require('lspconfig').lua_ls.setup({
     on_attach = on_attach
 })
 
+-- Indentation settings
+vim.opt.expandtab = true      -- Convert tabs to spaces
+vim.opt.tabstop = 2          -- Number of spaces for a tab
+vim.opt.shiftwidth = 2       -- Number of spaces for each indentation level
+vim.opt.softtabstop = 2      -- Number of spaces for a tab in editing operations
+vim.opt.smartindent = true   -- Smart autoindenting on new lines
+vim.opt.autoindent = true    -- Copy indent from current line when starting a new line
+
+-- File type specific indentation
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = {"javascript", "javascriptreact", "typescript", "typescriptreact"},
+    callback = function()
+        vim.bo.tabstop = 2
+        vim.bo.shiftwidth = 2
+        vim.bo.softtabstop = 2
+        vim.bo.expandtab = true
+        vim.bo.autoindent = true
+        vim.bo.smartindent = true
+    end
+})
+
 -- Folding settings
 vim.opt.foldmethod = 'expr'
 vim.opt.foldexpr = 'nvim_treesitter#foldexpr()'
@@ -207,9 +309,6 @@ require('nvim-treesitter.configs').setup {
         additional_vim_regex_highlighting = false,
     },
     indent = {
-        enable = true
-    },
-    fold = {
         enable = true
     },
     autotag = {
@@ -256,6 +355,11 @@ vim.keymap.set('n', '<leader>v', ':vsplit<CR>', { noremap = true, silent = true 
 vim.keymap.set('n', '<C-h>', '<C-w>h', { noremap = true, silent = true })
 vim.keymap.set('n', '<C-l>', '<C-w>l', { noremap = true, silent = true })
 vim.keymap.set('n', '<C-w>', ':q<CR>', { noremap = true, silent = true })
+
+-- Format keybinding
+vim.keymap.set('n', '<leader>f', function()
+    vim.lsp.buf.format({ timeout_ms = 5000 })
+end, { noremap = true, silent = true })
 
 -- Telescope keymaps
 local builtin = require('telescope.builtin')
