@@ -43,7 +43,7 @@ require('packer').startup(function(use)
             require("nvim-tree").setup {
                 view = {
                     width = 30,
-                    side = "right"
+                    side = "left"
                 },
                 filters = {
                     dotfiles = true
@@ -119,6 +119,20 @@ require('packer').startup(function(use)
             'saadparwaiz1/cmp_luasnip',
             'rafamadriz/friendly-snippets'
         }
+    }
+
+    -- LSP Kind for nice icons in completion
+    use {
+        'onsails/lspkind.nvim',
+        config = function()
+            require('lspkind').init({
+                mode = 'symbol_text',
+                maxwidth = 50,
+                symbol_map = {
+                    Supermaven = "🤖"
+                }
+            })
+        end
     }
 
     -- Mason for easy LSP installation
@@ -249,6 +263,64 @@ require('packer').startup(function(use)
         end
     }
 
+    -- Supermaven AI completion
+    use {
+        "supermaven-inc/supermaven-nvim",
+        config = function()
+            require("supermaven-nvim").setup({
+                keymaps = {
+                    accept_suggestion = "<Tab>",
+                    clear_suggestion = "<C-]>",
+                    accept_word = "<C-j>",
+                },
+                color = {
+                    suggestion_color = "#ffffff",
+                    cterm = 244,
+                },
+                log_level = "info",
+                disable_inline_completion = true, -- disable inline since we're using cmp
+            })
+        end
+    }
+
+    -- Prettier through null-ls
+    use {
+        "jose-elias-alvarez/null-ls.nvim",
+        requires = { "nvim-lua/plenary.nvim" },
+        config = function()
+            local null_ls = require("null-ls")
+            null_ls.setup({
+                sources = {
+                    null_ls.builtins.formatting.prettier.with({
+                        filetypes = {
+                            "javascript",
+                            "javascriptreact",
+                            "typescript",
+                            "typescriptreact",
+                            "vue",
+                            "css",
+                            "scss",
+                            "less",
+                            "html",
+                            "json",
+                            "yaml",
+                            "markdown",
+                            "graphql"
+                        },
+                    }),
+                },
+            })
+            
+            -- Format on save
+            vim.cmd([[
+                augroup FormatAutogroup
+                    autocmd!
+                    autocmd BufWritePre *.js,*.jsx,*.ts,*.tsx,*.css,*.scss,*.json,*.md lua vim.lsp.buf.format()
+                augroup END
+            ]])
+        end
+    }
+
     -- Automatically sync plugins if packer.nvim was just installed
     if packer_bootstrap then
         require('packer').sync()
@@ -256,142 +328,52 @@ require('packer').startup(function(use)
 end)
 
 -- Mason Setup
-require("mason").setup()
-require("mason-lspconfig").setup({
-    ensure_installed = {
-        "tsserver",    -- TypeScript/JavaScript
-        "html",        -- HTML
-        "cssls",       -- CSS
-        "lua_ls",      -- Lua
-        "prettier",    -- Prettier formatter
-    },
-    automatic_installation = true
-})
-
--- Completion setup
-local cmp = require('cmp')
-local luasnip = require('luasnip')
-require("luasnip.loaders.from_vscode").lazy_load()
-
-cmp.setup({
-    snippet = {
-        expand = function(args)
-            luasnip.lsp_expand(args.body)
-        end,
-    },
-    mapping = cmp.mapping.preset.insert({
-        ['<C-b>'] = cmp.mapping.scroll_docs(-4),
-        ['<C-f>'] = cmp.mapping.scroll_docs(4),
-        ['<C-Space>'] = cmp.mapping.complete(),
-        ['<C-e>'] = cmp.mapping.abort(),
-        ['<CR>'] = cmp.mapping.confirm({ select = true }),
-        ['<Tab>'] = cmp.mapping(function(fallback)
-            if cmp.visible() then
-                cmp.select_next_item()
-            elseif luasnip.expand_or_jumpable() then
-                luasnip.expand_or_jump()
-            else
-                fallback()
-            end
-        end, { 'i', 's' }),
-        ['<S-Tab>'] = cmp.mapping(function(fallback)
-            if cmp.visible() then
-                cmp.select_prev_item()
-            elseif luasnip.jumpable(-1) then
-                luasnip.jump(-1)
-            else
-                fallback()
-            end
-        end, { 'i', 's' }),
-    }),
-    sources = cmp.config.sources({
-        { name = 'nvim_lsp' },
-        { name = 'luasnip' },
-        { name = 'buffer' },
-        { name = 'path' }
-    })
-})
-
--- LSP Configuration
-local capabilities = require('cmp_nvim_lsp').default_capabilities()
-
--- Common on_attach function for LSP
-local on_attach = function(client, bufnr)
-    -- Enable completion triggered by <c-x><c-o>
-    vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
-
-    -- Disable formatting for tsserver as we'll use prettier
-    if client.name == "tsserver" then
-        client.server_capabilities.documentFormattingProvider = false
-    end
-end
-
--- Remove the format-on-save autocmd
-
--- Prettier
-require('lspconfig').prettierd.setup({
-    capabilities = capabilities,
-    on_attach = function(client, bufnr)
-        on_attach(client, bufnr)
-        -- Format on save for Prettier-supported files
-        vim.api.nvim_create_autocmd("BufWritePre", {
-            buffer = bufnr,
-            callback = function()
-                if client.server_capabilities.documentFormattingProvider then
-                    vim.lsp.buf.format({ 
-                        bufnr = bufnr,
-                        timeout_ms = 5000,
-                    })
-                end
-            end
-        })
-    end,
-    filetypes = {
-        "javascript",
-        "javascriptreact",
-        "typescript",
-        "typescriptreact",
-        "json",
-        "css",
-        "scss",
-        "html"
-    },
-    settings = {
-        prettier = {
-            singleQuote = true,
-            semi = false,
-            tabWidth = 2,
-            useTabs = false,
-            printWidth = 80,
-            trailingComma = "all",
-            jsxSingleQuote = true,
-            arrowParens = "avoid",
-            bracketSpacing = true,
+require("mason").setup({
+    ui = {
+        icons = {
+            package_installed = "✓",
+            package_pending = "➜",
+            package_uninstalled = "✗"
         }
     }
 })
 
+require("mason-lspconfig").setup({
+    ensure_installed = {
+        "typescript-language-server",  -- TypeScript/JavaScript
+        "eslint-lsp",                 -- ESLint
+        "html-lsp",                   -- HTML
+        "css-lsp",                    -- CSS
+        "json-lsp",                   -- JSON
+    },
+    automatic_installation = true
+})
+
+-- LSP Configuration
+local lspconfig = require('lspconfig')
+
 -- TypeScript/JavaScript
-require('lspconfig').tsserver.setup({
-    capabilities = capabilities,
-    on_attach = on_attach
+lspconfig.typescript.setup({
+    on_attach = function(client, bufnr)
+        -- Disable tsserver formatting as we will use prettier
+        client.server_capabilities.documentFormattingProvider = false
+        client.server_capabilities.documentRangeFormattingProvider = false
+        on_attach(client, bufnr)
+    end,
 })
 
 -- HTML
-require('lspconfig').html.setup({
-    capabilities = capabilities,
+lspconfig.html.setup({
     on_attach = on_attach
 })
 
 -- CSS
-require('lspconfig').cssls.setup({
-    capabilities = capabilities,
+lspconfig.cssls.setup({
     on_attach = on_attach
 })
 
 -- Lua
-require('lspconfig').lua_ls.setup({
-    capabilities = capabilities,
+lspconfig.lua_ls.setup({
     on_attach = on_attach
 })
 
@@ -441,7 +423,11 @@ require('nvim-treesitter.configs').setup {
         enable = true
     },
     autotag = {
-        enable = true
+        enable = true,
+        filetypes = {
+            'html', 'javascript', 'typescript', 'javascriptreact', 
+            'typescriptreact', 'svelte', 'vue', 'tsx', 'jsx', 'xml'
+        },
     }
 }
 
@@ -571,8 +557,78 @@ vim.opt.cursorline = true           -- Highlight current line
 vim.opt.wrap = false                -- Don't wrap lines
 vim.opt.mouse = "a"                 -- Enable mouse support
 
+-- Copy/Paste keybindings
+vim.keymap.set('v', '<C-c>', '"+y', { noremap = true, silent = true })        -- Copy in visual mode
+vim.keymap.set('v', '<C-x>', '"+d', { noremap = true, silent = true })        -- Cut in visual mode
+vim.keymap.set('n', '<C-v>', '"+p', { noremap = true, silent = true })        -- Paste in normal mode
+vim.keymap.set('i', '<C-v>', '<C-r>+', { noremap = true, silent = true })     -- Paste in insert mode
+vim.keymap.set('c', '<C-v>', '<C-r>+', { noremap = true, silent = true })     -- Paste in command mode
+vim.keymap.set('v', '<C-v>', '"+P', { noremap = true, silent = true })        -- Paste in visual mode
+
 -- Additional keymaps for better navigation
 vim.keymap.set('n', '<C-d>', '<C-d>zz', { noremap = true, silent = true })  -- Keep cursor in middle when jumping
 vim.keymap.set('n', '<C-u>', '<C-u>zz', { noremap = true, silent = true })
 vim.keymap.set('n', 'n', 'nzzzv', { noremap = true, silent = true })        -- Keep cursor in middle when searching
 vim.keymap.set('n', 'N', 'Nzzzv', { noremap = true, silent = true })
+
+-- Completion setup
+local cmp = require('cmp')
+local lspkind = require('lspkind')
+
+cmp.setup({
+    snippet = {
+        expand = function(args)
+            require('luasnip').lsp_expand(args.body)
+        end,
+    },
+    mapping = {
+        ['<C-Space>'] = cmp.mapping.complete(),
+        ['<CR>'] = cmp.mapping.confirm({ select = true }),
+        ['<Tab>'] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+                cmp.select_next_item()
+            else
+                fallback()
+            end
+        end, { 'i', 's' }),
+        ['<S-Tab>'] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+                cmp.select_prev_item()
+            else
+                fallback()
+            end
+        end, { 'i', 's' }),
+    },
+    sources = cmp.config.sources({
+        { name = 'supermaven' },  -- Add Supermaven as a source
+        { name = 'nvim_lsp' },
+        { name = 'luasnip' },
+        { name = 'buffer' },
+    }),
+    formatting = {
+        format = lspkind.cmp_format({
+            mode = 'symbol_text',
+            maxwidth = 50,
+            symbol_map = {
+                Supermaven = "🤖"
+            }
+        })
+    }
+})
+
+-- Common on_attach function for LSP
+local on_attach = function(client, bufnr)
+    -- Enable completion triggered by <c-x><c-o>
+    vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
+
+    -- LSP keybindings
+    local opts = { noremap = true, silent = true, buffer = bufnr }
+    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+    vim.keymap.set('n', 'gh', vim.lsp.buf.hover, opts)
+    vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
+    vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+    vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
+    vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+    vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
+    vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
+end
